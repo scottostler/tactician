@@ -1,0 +1,12 @@
+[package]
+name = "tactician"
+version = "0.0.1"
+authors = [ "Scott Ostler" ]
+
+[profile.release]
+debug = true
+
+[dependencies]
+getopts = "0.2.14"
+lazy_static = "0.1.15"
+rand = "0.3.13"
