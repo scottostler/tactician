@@ -1,18 +1,19 @@
-use rand::{thread_rng, Rng, ThreadRng, sample};
+use rand::{thread_rng, Rng, ThreadRng};
 use std;
 use std::collections::HashMap;
 
 use cards;
 use cards::{Card, CardIdentifier};
+use util::{subtract_vector};
 
 const EMPTY_PILES_FOR_GAME_END: i32 = 3;
 const PLAYER_HAND_SIZE: usize = 5;
 
 #[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
-struct PlayerIdentifier(pub i32);
+pub struct PlayerIdentifier(pub i32);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-enum Phase {
+pub enum Phase {
     StartTurn,
     Action,
     BuyPlayTreasure,
@@ -22,85 +23,30 @@ enum Phase {
 }
 
 #[derive(Clone)]
-struct Player {
+pub struct Player {
     name: String,
     hand: Vec<CardIdentifier>,
     discard: Vec<CardIdentifier>,
     deck: Vec<CardIdentifier>,
 }
 
-fn subtract_vector<T: std::fmt::Display + Eq>(vs: &mut Vec<T>, s: &Vec<T>) {
-    for x in s.iter() {
-        let idx = match vs.iter().position(|v| *v == *x) {
-            Some(idx) => idx,
-            None => panic!("Unable to find index for {}", x)
-        };
-        vs.remove(idx);
-    }
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
-enum DecisionType {
+pub enum DecisionType {
     PlayTreasures,
     BuyCard
 }
 
 #[derive(Clone)]
-struct Decision {
-    player: PlayerIdentifier,
-    decision_type: DecisionType,
-    choices: Vec<CardIdentifier>,
-    range: (usize, usize),
+pub struct Decision {
+    pub player: PlayerIdentifier,
+    pub decision_type: DecisionType,
+    pub choices: Vec<CardIdentifier>,
+    pub range: (usize, usize),
 }
 
 pub trait Decider {
     fn description(&self) -> String;
     fn make_decision(&self, d: &Decision, g: &Game) -> Vec<CardIdentifier>;
-}
-
-pub struct BigMoney;
-
-impl Decider for BigMoney {
-
-    fn description(&self) -> String { return "Big Money".into(); }
-
-    fn make_decision(&self, d: &Decision, g: &Game) -> Vec<CardIdentifier> {
-        match d.decision_type {
-            DecisionType::PlayTreasures => return d.choices.clone(),
-            DecisionType::BuyCard => {
-                let cs = g.coins;
-                if cs >= cards::PROVINCE.cost {
-                    return vec![cards::PROVINCE.identifier];
-                } else if cs >= cards::GOLD.cost {
-                    return vec![cards::GOLD.identifier];
-                } else if cs >= cards::SILVER.cost {
-                    return vec![cards::SILVER.identifier];
-                } else {
-                    return vec![];
-                }
-            }
-        }
-    }
-}
-
-pub struct RandomDecider;
-
-impl Decider for RandomDecider {
-
-    fn description(&self) -> String { return "Random".into(); }
-
-    fn make_decision(&self, d: &Decision, _: &Game) -> Vec<CardIdentifier> {
-        if d.decision_type == DecisionType::PlayTreasures {
-            return d.choices.clone();
-        }
-
-        let mut rng = thread_rng();
-        let n = match d.range.0 == d.range.1 {
-            true => d.range.0,
-            false => rng.gen_range(d.range.0, d.range.1 + 1) as usize,
-        };
-        return sample(&mut rng, d.choices.clone(), n);
-    }
 }
 
 impl Player {
@@ -155,17 +101,17 @@ impl Player {
 }
 
 #[derive(Clone)]
-struct Game {
-    turn: i32,
-    active_player: PlayerIdentifier,
-    phase: Phase,
-    actions: i32,
-    buys: i32,
-    coins: i32,
-    piles: HashMap<CardIdentifier, i32>,
-    play_area: Vec<CardIdentifier>,
-    players: Vec<Player>,
-    pending_decision: Option<Decision>
+pub struct Game {
+    pub turn: i32,
+    pub active_player: PlayerIdentifier,
+    pub phase: Phase,
+    pub actions: i32,
+    pub buys: i32,
+    pub coins: i32,
+    pub piles: HashMap<CardIdentifier, i32>,
+    pub play_area: Vec<CardIdentifier>,
+    pub players: Vec<Player>,
+    pub pending_decision: Option<Decision>
 }
 
 struct EvalContext {

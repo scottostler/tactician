@@ -1,5 +1,7 @@
 mod cards;
+mod deciders;
 mod game;
+mod util;
 
 extern crate getopts;
 #[macro_use]
@@ -11,8 +13,8 @@ fn main() {
     println!("Running {} games...", num_games);
 
     let players = vec![
-        Box::new(game::RandomDecider) as Box<game::Decider>,
-        Box::new(game::BigMoney) as Box<game::Decider>];
+        Box::new(deciders::RandomDecider) as Box<game::Decider>,
+        Box::new(deciders::BigMoney) as Box<game::Decider>];
 
     let mut results = vec![0.0; 2];
 

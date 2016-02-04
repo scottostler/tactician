@@ -18,7 +18,6 @@ impl std::fmt::Display for CardIdentifier {
     }
 }
 
-
 impl Card {
     pub fn is_treasure(&self) -> bool {
         return self.coin_value > 0;
