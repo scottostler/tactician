@@ -208,7 +208,7 @@ impl Game {
             }
             Phase::BuyPlayTreasure => {
                 let treasures = self.players[self.active_player.0 as usize].hand
-                    .iter().cloned().filter(|c| cards::lookup_card(c).is_treasure())
+                    .iter().filter(|c| cards::lookup_card(c).is_treasure()).cloned()
                     .collect::<Vec<CardIdentifier>>();
 
                 let treasure_len = treasures.len();
