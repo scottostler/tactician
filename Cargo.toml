@@ -8,5 +8,7 @@ debug = true
 
 [dependencies]
 getopts = "0.2.14"
+itertools = "0.4"
 lazy_static = "0.1.15"
 rand = "0.3.13"
+

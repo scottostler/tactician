@@ -24,6 +24,12 @@ impl Card {
     }
 }
 
+impl std::fmt::Debug for CardIdentifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", lookup_card(self).name)
+    }
+}
+
 pub const COPPER   : Card = Card { identifier: CardIdentifier(1), name: "Copper", cost: 0, coin_value: 1, vp_value: 0 };
 pub const SILVER   : Card = Card { identifier: CardIdentifier(2), name: "Silver", cost: 3, coin_value: 2, vp_value: 0 };
 pub const GOLD     : Card = Card { identifier: CardIdentifier(3), name: "Gold", cost: 6, coin_value: 3, vp_value: 0 };

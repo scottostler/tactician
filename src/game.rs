@@ -1,16 +1,13 @@
-use rand::{thread_rng, Rng, ThreadRng};
+use rand::{Rng, XorShiftRng};
 use std;
 use std::collections::HashMap;
 
 use cards;
 use cards::{Card, CardIdentifier};
-use util::{subtract_vector};
+use util::{subtract_vector, randomly_seeded_weak_rng};
 
 const EMPTY_PILES_FOR_GAME_END: i32 = 3;
 const PLAYER_HAND_SIZE: usize = 5;
-
-#[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
-pub struct PlayerIdentifier(pub i32);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Phase {
@@ -22,8 +19,12 @@ pub enum Phase {
     EndTurn
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
+pub struct PlayerIdentifier(pub i32);
+
 #[derive(Clone)]
 pub struct Player {
+    identifier: PlayerIdentifier,
     name: String,
     hand: Vec<CardIdentifier>,
     discard: Vec<CardIdentifier>,
@@ -46,7 +47,7 @@ pub struct Decision {
 
 pub trait Decider {
     fn description(&self) -> String;
-    fn make_decision(&self, d: &Decision, g: &Game) -> Vec<CardIdentifier>;
+    fn make_decision(&mut self, g: &Game) -> Vec<CardIdentifier>;
 }
 
 impl Player {
@@ -114,9 +115,9 @@ pub struct Game {
     pub pending_decision: Option<Decision>
 }
 
-struct EvalContext {
-    rng: ThreadRng,
-    debug: bool
+pub struct EvalContext {
+    pub rng: XorShiftRng,
+    pub debug: bool
 }
 
 impl Game {
@@ -129,7 +130,7 @@ impl Game {
         }
     }
 
-    fn is_game_over(&self) -> bool {
+    pub fn is_game_over(&self) -> bool {
         if self.phase != Phase::EndTurn {
             return false;
         } else if self.piles[&cards::PROVINCE.identifier] == 0 {
@@ -149,6 +150,35 @@ impl Game {
         }
     }
 
+    pub fn player_vp_and_turns(&self) -> Vec<(i32, i32)> {
+        return self.players.iter().enumerate().map(|(i, p)| {
+            let score = cards::score_cards(&p.all_cards());
+            if i <= (self.active_player.0 as usize) {
+                (score, self.turn)
+            } else {
+                (score, self.turn - 1)
+            }
+        }).collect::<Vec<(i32, i32)>>();
+    }
+
+    pub fn player_scores(&self) -> Vec<(PlayerIdentifier, f32)> {
+        assert!(self.is_game_over());
+        let points = self.player_vp_and_turns();
+        let high_score = points.iter().max_by_key(|pair| {
+            (pair.0, pair.1 * -1)
+        }).unwrap();
+
+        let winners = points.iter().filter(|pair| *pair == high_score).collect::<Vec<_>>();
+        return self.players.iter().zip(points.iter()).map(|(player, pair)| {
+            let score = if pair == high_score {
+                1.0 / (winners.len() as f32)
+            } else {
+                0.0
+            };
+            (player.identifier, score)
+        }).collect();
+    }
+
     fn next_turn(&mut self) {
         if self.active_player.0 + 1 == self.players.len() as i32 {
             self.turn += 1;
@@ -163,7 +193,7 @@ impl Game {
         self.coins = 0;
     }
 
-    fn advance_game(&mut self, ctx: &mut EvalContext) {
+    pub fn advance_game(&mut self, ctx: &mut EvalContext) {
         match self.phase {
             Phase::StartTurn => {
                 if ctx.debug {
@@ -223,7 +253,8 @@ impl Game {
         }
     }
 
-    fn resolve_decision(&mut self, decision: &Decision, result: Vec<CardIdentifier>, ctx: &mut EvalContext) {
+    pub fn resolve_decision(&mut self, result: Vec<CardIdentifier>, ctx: &mut EvalContext) {
+        let decision = self.pending_decision.take().expect("Game::resolve_decision called without pending decision");
         match decision.decision_type {
             DecisionType::BuyCard => {
                 match result.first() {
@@ -273,20 +304,26 @@ impl Game {
 
 }
 
-fn fresh_player(name: &String) -> Player {
+impl std::fmt::Debug for Game {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "Turn {}, {}'s turn", self.turn, self.players[self.active_player.0 as usize].name)
+    }
+}
+
+fn fresh_player(identifier: PlayerIdentifier, name: &String) -> Player {
     let mut discard = std::iter::repeat(cards::COPPER.identifier).take(7).collect::<Vec<CardIdentifier>>();
     discard.extend(std::iter::repeat(cards::ESTATE.identifier).take(3));
-    return Player { name: name.clone(), hand: Vec::new(), deck: Vec::new(), discard: discard };
+    return Player { identifier: identifier, name: name.clone(), hand: Vec::new(), deck: Vec::new(), discard: discard };
 }
 
 fn fresh_game(player_names: &Vec<String>) -> Game {
-    let players = player_names.iter().map(|name| {
-            return fresh_player(name);
+    let players = player_names.iter().enumerate().map(|(i, name)| {
+            return fresh_player(PlayerIdentifier(i as i32), name);
         }).collect::<Vec<_>>();
 
     return Game {
         turn: 1,
-        active_player: PlayerIdentifier(0),
+        active_player: players.first().unwrap().identifier,
         phase: Phase::StartTurn,
         actions: 1,
         buys: 1,
@@ -298,79 +335,57 @@ fn fresh_game(player_names: &Vec<String>) -> Game {
     };
 }
 
-pub fn run_game(players: &Vec<Box<Decider>>, debug: bool) -> Vec<f32> {
-    let mut ctx = EvalContext { rng: thread_rng(), debug: debug };
+pub fn run_game(players: &mut Vec<Box<Decider>>, debug: bool) -> Vec<f32> {
+    let mut ctx = EvalContext { rng: randomly_seeded_weak_rng(), debug: debug };
 
     let player_names = players.iter().map(|d| d.description()).collect::<Vec<_>>();
     let mut game = fresh_game(&player_names);
     game.initialize_game(&mut ctx);
 
     while !game.is_game_over() {
-        let decision: Option<Decision> = std::mem::replace(&mut game.pending_decision, None);
-        match decision {
-            Some(ref d) => {
-                let choice = players[d.player.0 as usize].make_decision(d, &game);
-                game.resolve_decision(d, choice, &mut ctx);
-            }
-            None => game.advance_game(&mut ctx)
+        if game.pending_decision.is_some() {
+            let player_idx = game.pending_decision.as_ref().unwrap().player.0 as usize;
+            let choice = players[player_idx].make_decision(&game);
+            game.resolve_decision(choice, &mut ctx);
+        } else {
+            game.advance_game(&mut ctx);
         }
     }
 
-    let turn_count = game.turn;
-    let active_player = game.active_player;
-    let points = game.players.iter().enumerate().map(|(i, p)| {
-        let score = cards::score_cards(&p.all_cards());
-        if i <= (active_player.0 as usize) {
-            (score, turn_count)
-        } else {
-            (score, turn_count - 1)
-        }
-    }).collect::<Vec<(i32, i32)>>();
-
     if ctx.debug {
+        let points = game.player_vp_and_turns();
         println!("The game is over.");
         for (i, &(points, turns)) in points.iter().enumerate() {
             let ref name = game.players[i].name;
-            println!("{}: {} points in {} turns", name, points, turns);
+            println!("{}: {} VP in {} turns", name, points, turns);
         }
     }
 
-    let high_score = points.iter().max_by_key(|pair| {
-        (pair.0, pair.1 * -1)
-    }).unwrap();
-
-    let winners = points.iter().filter(|pair| *pair == high_score).collect::<Vec<_>>();
-    return points.iter().map(|pair| {
-        if pair == high_score {
-            1.0 / (winners.len() as f32)
-        } else{
-            0.0
-        }
-    }).collect();
+    return game.player_scores().iter().map(|&(_, score)| score).collect();
 }
 
 #[test]
 fn test_draw() {
-    let mut ctx = EvalContext { debug: false, rng: thread_rng() };
-    let mut p = fresh_player(&"Test Player".to_string());
+    let mut ctx = EvalContext { debug: false, rng: randomly_seeded_weak_rng() };
+    let mut p = fresh_player(PlayerIdentifier(0), &"Test Player".to_string());
     p.draw_cards(5, &mut ctx);
-    assert!(p.hand.len() == 5);
-    assert!(p.deck.len() == 5);
-    assert!(p.all_cards().len() == 10);
+    assert_eq!(p.hand.len(), 5);
+    assert_eq!(p.deck.len(), 5);
+    assert_eq!(p.all_cards().len(), 10);
     p.discard_hand(&mut ctx);
-    assert!(p.hand.len() == 0);
-    assert!(p.discard.len() == 5);
-    assert!(p.all_cards().len() == 10);
+    assert_eq!(p.hand.len(), 0);
+    assert_eq!(p.discard.len(), 5);
+    assert_eq!(p.all_cards().len(), 10);
     p.draw_cards(5, &mut ctx);
-    assert!(p.deck.len() == 0);
-    assert!(p.hand.len() == 5);
-    assert!(p.discard.len() == 5);
-    assert!(p.all_cards().len() == 10);
+    assert_eq!(p.deck.len(), 0);
+    assert_eq!(p.hand.len(), 5);
+    assert_eq!(p.discard.len(), 5);
+    assert_eq!(p.all_cards().len(), 10);
     p.discard_hand(&mut ctx);
     p.draw_cards(5, &mut ctx);
-    assert!(p.discard.len() == 0);
-    assert!(p.deck.len() == 5);
-    assert!(p.hand.len() == 5);
-    assert!(p.all_cards().len() == 10);
+    assert_eq!(p.discard.len(), 0);
+    assert_eq!(p.deck.len(), 5);
+    assert_eq!(p.hand.len(), 5);
+    assert_eq!(p.all_cards().len(), 10);
 }
 
