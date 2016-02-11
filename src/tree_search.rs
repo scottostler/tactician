@@ -154,7 +154,7 @@ fn choose_random_move<T: SearchableState>(state: &T, rng: &mut XorShiftRng) -> O
 }
 
 fn simulate_until_terminal<T: SearchableState>(state: T, rng: &mut XorShiftRng, ctx: &mut T::C) -> T {
-    let mut mut_state = state.clone();
+    let mut mut_state = state;
     while let Some(m) = choose_random_move(&mut_state, rng) {
         mut_state.make_move_mut(m, ctx);
     }
