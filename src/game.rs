@@ -3,7 +3,7 @@ use std;
 use std::collections::HashMap;
 
 use cards;
-use cards::{Card, CardIdentifier};
+use cards::{CardIdentifier};
 use util::{subtract_vector, randomly_seeded_weak_rng};
 
 const EMPTY_PILES_FOR_GAME_END: i32 = 3;
@@ -20,7 +20,7 @@ pub enum Phase {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
-pub struct PlayerIdentifier(pub i32);
+pub struct PlayerIdentifier(pub u8);
 
 #[derive(Clone)]
 pub struct Player {
@@ -180,7 +180,7 @@ impl Game {
     }
 
     fn next_turn(&mut self) {
-        if self.active_player.0 + 1 == self.players.len() as i32 {
+        if self.active_player.0 + 1 == self.players.len() as u8 {
             self.turn += 1;
             self.active_player = PlayerIdentifier(0);
         } else {
@@ -198,7 +198,9 @@ impl Game {
             Phase::StartTurn => {
                 if ctx.debug {
                     let ref player = self.players[self.active_player.0 as usize];
-                    println!("----- Turn {}, {} -----", self.turn, player.name);
+                    if ctx.debug {
+                        println!("----- Turn {}, {} -----", self.turn, player.name);
+                    }
                 }
                 self.phase = Phase::Action;
             }
@@ -257,6 +259,7 @@ impl Game {
         let decision = self.pending_decision.take().expect("Game::resolve_decision called without pending decision");
         match decision.decision_type {
             DecisionType::BuyCard => {
+                assert!(result.len() <= 1, "Can only buy at most one card");
                 match result.first() {
                     Some(ci) => {
                         let c = cards::lookup_card(ci);
@@ -280,9 +283,7 @@ impl Game {
             }
             DecisionType::PlayTreasures => {
                 if result.len() > 0 {
-                    let cards = result.iter().map(|ci| cards::lookup_card(ci) ).collect::<Vec<&Card>>();
-
-                    for c in &cards {
+                    for c in result.iter().map(|ci| cards::lookup_card(ci)) {
                         assert!(c.is_treasure(), "Can only play treasures");
                         self.coins += c.coin_value;
                     }
@@ -290,7 +291,7 @@ impl Game {
                     let ref mut player = self.players[decision.player.0 as usize];
 
                     if ctx.debug {
-                        let names = cards.iter().map(|c| c.name.into() ).collect::<Vec<String>>();
+                        let names = result.iter().map(|ci| cards::lookup_card(ci).name.into()  ).collect::<Vec<String>>();
                         println!("{} plays {}", player.name, names.join(", "));
                     }
 
@@ -318,7 +319,7 @@ fn fresh_player(identifier: PlayerIdentifier, name: &String) -> Player {
 
 fn fresh_game(player_names: &Vec<String>) -> Game {
     let players = player_names.iter().enumerate().map(|(i, name)| {
-            return fresh_player(PlayerIdentifier(i as i32), name);
+            return fresh_player(PlayerIdentifier(i as u8), name);
         }).collect::<Vec<_>>();
 
     return Game {

@@ -2,7 +2,7 @@ use std;
 use std::collections::HashMap;
 
 #[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct CardIdentifier(pub i32);
+pub struct CardIdentifier(pub u16);
 
 pub struct Card {
     pub identifier: CardIdentifier,

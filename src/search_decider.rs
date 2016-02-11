@@ -67,7 +67,7 @@ impl tree_search::SearchableState for Game {
             
             let combinations = d.choices.iter().combinations_n(i);
             for c in combinations {
-                let mut v = vec![];
+                let mut v = Vec::with_capacity(c.len());
                 for x in c {
                     v.push(*x);
                 }
@@ -112,6 +112,7 @@ impl Decider for SearchDecider {
                 return choice;
             }
         }
+
         let best_move = tree_search::find_best_move(g.clone(), self.iterations, &mut self.ctx, self.debug);
         best_move
     }
