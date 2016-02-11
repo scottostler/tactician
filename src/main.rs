@@ -30,10 +30,25 @@ fn run_games(num_games: i32, players: &mut Vec<Box<game::Decider>>, debug: bool)
     }
 }
 
+fn player_for_string(s: String, debug: bool) -> Box<game::Decider> {
+    let s = s.to_lowercase();
+    
+    match s.to_lowercase().as_ref() {
+        "bigmoney"  => Box::new(deciders::BigMoney),
+        "tactician" => {
+            let simulator_ctx = game::EvalContext { debug: false, rng: util::randomly_seeded_weak_rng() };
+            Box::new(search_decider::SearchDecider { ctx: simulator_ctx, debug: debug, iterations: 10000 })
+        },
+        "random"    => Box::new(deciders::RandomDecider::new()),
+        _           => panic!("Unknown player {}", s)
+    }
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    let opts = getopts::Options::new();
-    
+    let mut opts = getopts::Options::new();
+    opts.optflag("d", "debug", "enable debug logging");
+
     let matches = match opts.parse(&args[1..]) {
         Ok(m) => { m }
         Err(f) => { panic!(f.to_string()) }
@@ -44,12 +59,13 @@ fn main() {
         None    => 1
     };
 
-    let debug = true;
-    let ctx = game::EvalContext { debug: false, rng: util::randomly_seeded_weak_rng() };
-
-    let mut players = vec![
-        Box::new(search_decider::SearchDecider { ctx: ctx, debug: debug, iterations: 10000 }) as Box<game::Decider>,
-        Box::new(deciders::BigMoney) as Box<game::Decider>];
+    let debug = matches.opt_present("debug");
     
+    let first_player = player_for_string(
+        matches.free.get(1).unwrap_or(&String::from("tactician")).clone(), debug);
+    let second_player = player_for_string(
+        matches.free.get(2).unwrap_or(&String::from("bigmoney")).clone(), debug);
+    
+    let mut players = vec![first_player, second_player];
     run_games(num_games, &mut players, debug);
 }
