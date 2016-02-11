@@ -198,9 +198,7 @@ impl Game {
             Phase::StartTurn => {
                 if ctx.debug {
                     let ref player = self.players[self.active_player.0 as usize];
-                    if ctx.debug {
-                        println!("----- Turn {}, {} -----", self.turn, player.name);
-                    }
+                    println!("----- Turn {}, {} -----", self.turn, player.name);
                 }
                 self.phase = Phase::Action;
             }
@@ -254,6 +252,41 @@ impl Game {
             }
         }
     }
+    
+    fn buy_card(&mut self, player: PlayerIdentifier, ci: &CardIdentifier, ctx: &mut EvalContext) {
+        let c = cards::lookup_card(ci);
+        assert!(self.buys > 0, "Must have a buy");
+        assert!(self.coins >= c.cost, "Must have enough coins");
+        assert!(self.piles[ci] > 0, "Pile must not be empty");
+        self.buys -= 1;
+        self.coins -= c.cost;
+        match self.piles.get_mut(ci) {
+            Some(l) => *l -= 1,
+            None => panic!("Cannot find pile for {}", c.name),
+        }
+        self.players[player.0 as usize].discard.push(*ci);
+
+        if ctx.debug {
+            println!("{} buys {}", self.players[player.0 as usize].name, c.name);
+        }
+    }
+    
+    fn play_treasures(&mut self, p_id: PlayerIdentifier, result: &Vec<CardIdentifier>, ctx: &mut EvalContext) {
+        for c in result.iter().map(|ci| cards::lookup_card(ci)) {
+            assert!(c.is_treasure(), "Can only play treasures");
+            self.coins += c.coin_value;
+        }
+
+        let ref mut player = self.players[p_id.0 as usize];
+
+        if ctx.debug {
+            let names = result.iter().map(|ci| cards::lookup_card(ci).name.into()  ).collect::<Vec<String>>();
+            println!("{} plays {}", player.name, names.join(", "));
+        }
+
+        self.play_area.extend(result);
+        subtract_vector::<CardIdentifier>(&mut player.hand, &result);
+    }
 
     pub fn resolve_decision(&mut self, result: Vec<CardIdentifier>, ctx: &mut EvalContext) {
         let decision = self.pending_decision.take().expect("Game::resolve_decision called without pending decision");
@@ -262,41 +295,14 @@ impl Game {
                 assert!(result.len() <= 1, "Can only buy at most one card");
                 match result.first() {
                     Some(ci) => {
-                        let c = cards::lookup_card(ci);
-                        assert!(self.buys > 0, "Must have a buy");
-                        assert!(self.coins >= c.cost, "Must have enough coins");
-                        assert!(self.piles[ci] > 0, "Pile must not be empty");
-                        self.buys -= 1;
-                        self.coins -= c.cost;
-                        match self.piles.get_mut(ci) {
-                            Some(l) => *l -= 1,
-                            None => panic!("Cannot find pile for {}", c.name),
-                        }
-                        self.players[decision.player.0 as usize].discard.push(*ci);
-
-                        if ctx.debug {
-                            println!("{} buys {}", self.players[decision.player.0 as usize].name, c.name);
-                        }
+                        self.buy_card(decision.player, ci, ctx);
                     }
                     None => self.phase = Phase::Cleanup
                 }
             }
             DecisionType::PlayTreasures => {
                 if result.len() > 0 {
-                    for c in result.iter().map(|ci| cards::lookup_card(ci)) {
-                        assert!(c.is_treasure(), "Can only play treasures");
-                        self.coins += c.coin_value;
-                    }
-
-                    let ref mut player = self.players[decision.player.0 as usize];
-
-                    if ctx.debug {
-                        let names = result.iter().map(|ci| cards::lookup_card(ci).name.into()  ).collect::<Vec<String>>();
-                        println!("{} plays {}", player.name, names.join(", "));
-                    }
-
-                    self.play_area.extend(&result);
-                    subtract_vector::<CardIdentifier>(&mut player.hand, &result);
+                    self.play_treasures(decision.player, &result, ctx);
                 }
                 self.phase = Phase::BuyPurchaseCard;
             }
