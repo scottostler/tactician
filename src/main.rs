@@ -60,7 +60,7 @@ fn main() {
     };
     
     if num_games == 0 {
-        panic!("Unable to play zero games. That's silly!");
+        panic!("I can't play zero games. That's silly!");
     }
 
     let debug = matches.opt_present("debug");
