@@ -3,7 +3,7 @@ use std;
 use std::collections::HashMap;
 
 use cards;
-use cards::{CardIdentifier};
+use cards::{CardAction, CardIdentifier};
 use util::{subtract_vector, randomly_seeded_weak_rng};
 
 const EMPTY_PILES_FOR_GAME_END: i32 = 3;
@@ -33,6 +33,7 @@ pub struct Player {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DecisionType {
+    PlayAction,
     PlayTreasures,
     BuyCard
 }
@@ -52,6 +53,7 @@ pub trait Decider {
 
 impl Player {
     fn draw_cards(&mut self, n:usize, ctx: &mut EvalContext) {
+        assert!(n > 0, "Drawing 0 cards does nothing");
         let mut drawn = match self.deck.len() >= n {
             true => {
                 let pivot = self.deck.len() - n;
@@ -77,7 +79,7 @@ impl Player {
         };
 
         if ctx.debug {
-            println!("{} drew {} cards", self.name, drawn.len());
+            println!("{} draws {} cards", self.name, drawn.len());
         }
 
         self.hand.append(&mut drawn);
@@ -102,6 +104,11 @@ impl Player {
 }
 
 #[derive(Clone)]
+pub enum QueuedEffect {
+    ActionEffect(PlayerIdentifier, CardAction),
+}
+
+#[derive(Clone)]
 pub struct Game {
     pub turn: i32,
     pub active_player: PlayerIdentifier,
@@ -112,7 +119,8 @@ pub struct Game {
     pub piles: HashMap<CardIdentifier, i32>,
     pub play_area: Vec<CardIdentifier>,
     pub players: Vec<Player>,
-    pub pending_decision: Option<Decision>
+    pub pending_decision: Option<Decision>,
+    pub pending_effects: Vec<QueuedEffect>
 }
 
 pub struct EvalContext {
@@ -193,7 +201,30 @@ impl Game {
         self.coins = 0;
     }
 
+    fn process_effect(&mut self, e: QueuedEffect, ctx: &mut EvalContext) {
+        match e {
+            QueuedEffect::ActionEffect(pid, ca) => {
+                let ref mut player = self.players[pid.0 as usize];
+                match ca {
+                    CardAction::DrawCards(n) => player.draw_cards(n as usize, ctx),
+                    CardAction::PlusActions(n) => self.actions += n,
+                    CardAction::PlusBuys(n) => self.buys += n,
+                    CardAction::PlusCoins(n) => self.coins += n,
+                    _ => println!("Unhandled action: {:?}", ca),
+                }
+            }
+        }
+    }
+
     pub fn advance_game(&mut self, ctx: &mut EvalContext) {
+        assert!(self.pending_decision.is_none(), "Can't advance game with pending decision");
+        
+        if self.pending_effects.len() > 0 {
+            let e = self.pending_effects.remove(0);
+            self.process_effect(e, ctx);
+            return;
+        }
+        
         match self.phase {
             Phase::StartTurn => {
                 if ctx.debug {
@@ -203,8 +234,26 @@ impl Game {
                 self.phase = Phase::Action;
             }
             Phase::Action => {
-                // TODO: actually implement actions
-                self.phase = Phase::BuyPlayTreasure;
+                if self.actions == 0 {
+                    self.phase = Phase::BuyPlayTreasure;
+                    return;
+                }
+                
+                let actions = self.players[self.active_player.0 as usize].hand
+                    .iter().filter(|c| cards::lookup_card(c).is_action()).cloned()
+                    .collect::<Vec<CardIdentifier>>();
+                
+                if actions.len() == 0 {
+                    self.phase = Phase::BuyPlayTreasure;
+                    return;
+                }
+                
+                self.pending_decision = Some(Decision {
+                    player: self.active_player,
+                    decision_type: DecisionType::PlayAction,
+                    choices: actions,
+                    range: (0, 1)
+                });
             }
             Phase::BuyPlayTreasure => {
                 let treasures = self.players[self.active_player.0 as usize].hand
@@ -271,10 +320,29 @@ impl Game {
         }
     }
     
+    fn play_action(&mut self, pid: PlayerIdentifier, action: &CardIdentifier, ctx: &mut EvalContext) {
+        let ref mut player = self.players[pid.0 as usize];
+        assert!(self.actions > 0, "Must have an action");
+        assert!(self.phase == Phase::Action, "Must be action phase");
+        
+        let hand_idx = player.hand.iter().position(|v| *v == *action).expect("Player doesn't have card in hand");
+        player.hand.remove(hand_idx);
+        
+        self.play_area.push(action.clone());
+        
+        for e in &cards::lookup_card(action).action_effects {
+            self.pending_effects.push(QueuedEffect::ActionEffect(pid, e.clone()));
+        }
+        
+        if ctx.debug {
+            println!("{} plays {}", player.name, action);
+        }
+    }
+    
     fn play_treasures(&mut self, p_id: PlayerIdentifier, result: &Vec<CardIdentifier>, ctx: &mut EvalContext) {
         for c in result.iter().map(|ci| cards::lookup_card(ci)) {
             assert!(c.is_treasure(), "Can only play treasures");
-            self.coins += c.coin_value;
+            self.coins += c.coin_value.unwrap();
         }
 
         let ref mut player = self.players[p_id.0 as usize];
@@ -291,24 +359,29 @@ impl Game {
     pub fn resolve_decision(&mut self, result: Vec<CardIdentifier>, ctx: &mut EvalContext) {
         let decision = self.pending_decision.take().expect("Game::resolve_decision called without pending decision");
         match decision.decision_type {
-            DecisionType::BuyCard => {
-                assert!(result.len() <= 1, "Can only buy at most one card");
+            DecisionType::PlayAction => {
+                assert!(result.len() <= 1, "Can only play at most one action");
                 match result.first() {
-                    Some(ci) => {
-                        self.buy_card(decision.player, ci, ctx);
-                    }
-                    None => self.phase = Phase::Cleanup
+                    Some(ci) => self.play_action(decision.player, ci, ctx),
+                    None => self.phase = Phase::BuyPlayTreasure,
                 }
-            }
+            },
             DecisionType::PlayTreasures => {
                 if result.len() > 0 {
                     self.play_treasures(decision.player, &result, ctx);
                 }
                 self.phase = Phase::BuyPurchaseCard;
+            },
+            
+            DecisionType::BuyCard => {
+                assert!(result.len() <= 1, "Can only buy at most one card");
+                match result.first() {
+                    Some(ci) => self.buy_card(decision.player, ci, ctx),
+                    None     => self.phase = Phase::Cleanup
+                }
             }
         }
     }
-
 }
 
 impl std::fmt::Debug for Game {
@@ -339,6 +412,7 @@ fn fresh_game(player_names: &Vec<String>) -> Game {
         play_area: Vec::new(),
         players: players,
         pending_decision: None,
+        pending_effects: vec![]
     };
 }
 

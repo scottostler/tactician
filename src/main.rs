@@ -13,11 +13,12 @@ extern crate rand;
 extern crate core;
 
 
-fn run_games(num_games: i32, players: &mut Vec<Box<game::Decider>>, debug: bool) {
+fn run_games(num_games: u32, players: &mut Vec<Box<game::Decider>>, debug: bool) {
     println!("Running {} game(s)...", num_games);
 
     let mut results = vec![0.0; 2];
-    for _ in 0..num_games {
+    for i in 0..num_games {
+        println!("Running game {}...", i + 1);
         let r = game::run_game(players, debug);
         for (i, score) in r.iter().enumerate() {
             results[i] += *score;
@@ -31,13 +32,12 @@ fn run_games(num_games: i32, players: &mut Vec<Box<game::Decider>>, debug: bool)
 }
 
 fn player_for_string(s: String, debug: bool) -> Box<game::Decider> {
-    let s = s.to_lowercase();
-    
     match s.to_lowercase().as_ref() {
         "bigmoney"  => Box::new(deciders::BigMoney),
         "tactician" => {
+            let num_iters = 50000;
             let simulator_ctx = game::EvalContext { debug: false, rng: util::randomly_seeded_weak_rng() };
-            Box::new(search_decider::SearchDecider { ctx: simulator_ctx, debug: debug, iterations: 10000 })
+            Box::new(search_decider::SearchDecider { ctx: simulator_ctx, debug: debug, iterations: num_iters })
         },
         "random"    => Box::new(deciders::RandomDecider::new()),
         _           => panic!("Unknown player {}", s)
@@ -54,10 +54,14 @@ fn main() {
         Err(f) => { panic!(f.to_string()) }
     };
     
-    let num_games: i32 = match matches.free.first() {
-        Some(s) => s.parse::<i32>().unwrap(),
+    let num_games = match matches.free.first() {
+        Some(s) => s.parse::<u32>().unwrap(),
         None    => 1
     };
+    
+    if num_games == 0 {
+        panic!("Unable to play zero games. That's silly!");
+    }
 
     let debug = matches.opt_present("debug");
     

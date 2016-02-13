@@ -14,6 +14,7 @@ impl Decider for BigMoney {
     fn make_decision(&mut self, g: &Game) -> Vec<CardIdentifier> {
         let d = g.pending_decision.as_ref().expect("BigMoney::make_decision called without pending decision");
         match d.decision_type {
+            DecisionType::PlayAction => panic!("BigMoney should not buy actions"),
             DecisionType::PlayTreasures => return d.choices.clone(),
             DecisionType::BuyCard => {
                 let cs = g.coins;
@@ -31,7 +32,6 @@ impl Decider for BigMoney {
     }
 }
 
-#[allow(dead_code)]
 pub struct RandomDecider {
     rng: XorShiftRng
 }
@@ -44,7 +44,6 @@ impl RandomDecider {
 }
 
 impl Decider for RandomDecider {
-
 
     fn description(&self) -> String { return "Random".into(); }
 

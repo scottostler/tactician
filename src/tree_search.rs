@@ -39,12 +39,12 @@ pub struct SearchNode<T: SearchableState> {
 impl <T: SearchableState> SearchNode<T> {
     
     fn print_debug_move_tree(&self) {
-        println!("{:?} --", self.state);
+        println!("  {:?} --", self.state);
         if let Some(p) = self.state.active_player() {
-            println!("  Moves for Player {:?}: ", p);
+            println!("    Moves for Player {:?}: ", p);
             for c in &self.children {
                 let c = c.borrow();
-                println!("  {:?}: won {} / {} ({:.2}%) visits",
+                println!("    {:?}: won {} / {} ({:.2}%) visits",
                          c.last_move.as_ref().expect("children should have last move"),
                          c.wins, c.visits, 100.0 * c.wins / c.visits as f32);
             }
@@ -53,10 +53,10 @@ impl <T: SearchableState> SearchNode<T> {
                 let child = self.most_visited_child();
                 child.borrow().print_debug_move_tree();
             } else {
-                println!("  tree is exhausted");
+                println!("    ...tree is exhausted");
             }
         } else {
-            println!("  game is over");
+            println!("    ...game is over");
         }
     }
     
