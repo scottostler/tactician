@@ -29,6 +29,21 @@ pub enum CardAction {
     PlusCoins(i32),
 }
 
+#[allow(dead_code)]
+#[derive(Clone, Debug)]
+pub enum EffectTarget {
+     ActivePlayer,
+     Opponents,
+     AllPlayers
+}
+
+pub fn target_for_action(action: &CardAction) -> EffectTarget {
+    match action {
+        &CardAction::OpponentsDiscardTo(_) => EffectTarget::Opponents,
+        _ => EffectTarget::ActivePlayer
+    }
+}
+
 #[derive(Debug)]
 pub struct Card {
     pub identifier: CardIdentifier,
@@ -163,14 +178,13 @@ lazy_static! {
     pub static ref MARKET   : Card = make_action_card("Market", 5,
             vec![CardAction::DrawCards(1), CardAction::PlusActions(1), CardAction::PlusBuys(1), CardAction::PlusCoins(1)]);
 
+    pub static ref MILITIA  : Card = make_action_card("Militia", 4,
+        vec![CardAction::PlusCoins(2), CardAction::OpponentsDiscardTo(3)]);
+
     pub static ref CARDS : Vec<&'static Card> = sort_cards_by_identifier(vec![
         &COPPER, &SILVER, &GOLD, &ESTATE, &DUCHY, &PROVINCE, &CURSE,
-        &VILLAGE, &SMITHY, &MARKET, &WOODCUTTER
-    ]);
-    
-    // pub static ref KINGDOM_CARDS : Vec<&'static Card> = vec![
-    //     &VILLAGE, &SMITHY
-    // ];
+        &VILLAGE, &SMITHY, &MARKET, &WOODCUTTER, &MILITIA
+    ]);    
 }
 
 pub fn lookup_card(ci: &CardIdentifier) -> &Card {
@@ -204,11 +218,14 @@ pub fn standard_piles(num_players: i32) -> HashMap<CardIdentifier, i32> {
          (SILVER.identifier, 40),
          (COPPER.identifier, 46),
          (CURSE.identifier, curses)];
+         
+    let kingdom_cards = vec![
+        VILLAGE.identifier, SMITHY.identifier, MARKET.identifier, WOODCUTTER.identifier, MILITIA.identifier
+    ];
     
-    cards.push((VILLAGE.identifier, KINGDOM_PILE_COUNT));
-    cards.push((SMITHY.identifier, KINGDOM_PILE_COUNT));
-    cards.push((MARKET.identifier, KINGDOM_PILE_COUNT));
-    cards.push((WOODCUTTER.identifier, KINGDOM_PILE_COUNT));
+    for c in kingdom_cards {
+        cards.push((c, KINGDOM_PILE_COUNT));
+    }
     
     cards.into_iter().collect::<HashMap<CardIdentifier, i32>>()
 }

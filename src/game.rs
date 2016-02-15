@@ -3,11 +3,11 @@ use std;
 use std::collections::HashMap;
 
 use cards;
-use cards::{CardAction, CardIdentifier};
+use cards::{CardAction, CardIdentifier, EffectTarget};
 use util::{subtract_vector, randomly_seeded_weak_rng};
 
-const EMPTY_PILES_FOR_GAME_END: i32 = 3;
-const PLAYER_HAND_SIZE: usize = 5;
+pub const EMPTY_PILES_FOR_GAME_END: i32 = 3;
+pub const PLAYER_HAND_SIZE: usize = 5;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Phase {
@@ -24,18 +24,19 @@ pub struct PlayerIdentifier(pub u8);
 
 #[derive(Clone)]
 pub struct Player {
-    identifier: PlayerIdentifier,
-    name: String,
-    hand: Vec<CardIdentifier>,
-    discard: Vec<CardIdentifier>,
-    deck: Vec<CardIdentifier>,
+    pub identifier: PlayerIdentifier,
+    pub name: String,
+    pub hand: Vec<CardIdentifier>,
+    pub discard: Vec<CardIdentifier>,
+    pub deck: Vec<CardIdentifier>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DecisionType {
     PlayAction,
     PlayTreasures,
-    BuyCard
+    BuyCard,
+    DiscardCards
 }
 
 #[derive(Clone)]
@@ -54,28 +55,25 @@ pub trait Decider {
 impl Player {
     fn draw_cards(&mut self, n:usize, ctx: &mut EvalContext) {
         assert!(n > 0, "Drawing 0 cards does nothing");
-        let mut drawn = match self.deck.len() >= n {
-            true => {
-                let pivot = self.deck.len() - n;
-                self.deck.split_off(pivot)
+        let mut drawn = if self.deck.len() >= n {
+            let pivot = self.deck.len() - n;
+            self.deck.split_off(pivot)
+        } else {
+            let mut first_draw: Vec<CardIdentifier> = self.deck.clone();
+
+            ctx.rng.shuffle(&mut self.discard);
+            self.deck = self.discard.clone();
+            self.discard.clear();
+
+            if ctx.debug {
+                println!("{} shuffled", self.name);
             }
-            false => {
-                let mut first_draw: Vec<CardIdentifier> = self.deck.clone();
 
-                ctx.rng.shuffle(&mut self.discard);
-                self.deck = self.discard.clone();
-                self.discard.clear();
-
-                if ctx.debug {
-                    println!("{} shuffled", self.name);
-                }
-
-                let second_n = std::cmp::min(self.deck.len(), n - first_draw.len());
-                let pivot = self.deck.len() - second_n;
-                let mut second_draw = self.deck.split_off(pivot);
-                first_draw.append(&mut second_draw);
-                first_draw
-            }
+            let second_n = std::cmp::min(self.deck.len(), n - first_draw.len());
+            let pivot = self.deck.len() - second_n;
+            let mut second_draw = self.deck.split_off(pivot);
+            first_draw.append(&mut second_draw);
+            first_draw
         };
 
         if ctx.debug {
@@ -94,7 +92,7 @@ impl Player {
         self.hand.clear();
     }
 
-    fn all_cards(&self) -> Vec<CardIdentifier> {
+    pub fn all_cards(&self) -> Vec<CardIdentifier> {
         let mut ret = Vec::new();
         ret.extend(&self.hand);
         ret.extend(&self.deck);
@@ -137,54 +135,35 @@ impl Game {
             p.draw_cards(PLAYER_HAND_SIZE, ctx);
         }
     }
-
-    pub fn is_game_over(&self) -> bool {
-        if self.phase != Phase::EndTurn {
-            return false;
-        } else if self.piles[&cards::PROVINCE.identifier] == 0 {
-            return true;
-        } else {
-            let mut n = 0;
-            for count in self.piles.values() {
-                if *count == 0 {
-                    n += 1;
-                }
-
-                if n >= EMPTY_PILES_FOR_GAME_END {
-                    return true;
-                }
-            }
-            return false;
+    
+    fn player_draws_cards(&mut self, pid: PlayerIdentifier, n:i32, ctx: &mut EvalContext) {
+        let ref mut player = self.players[pid.0 as usize];
+        player.draw_cards(n as usize, ctx);
+    }
+    
+    fn player_discards_to(&mut self, pid: PlayerIdentifier, n:i32, _: &mut EvalContext) {
+        let ref mut player = self.players[pid.0 as usize];
+        if player.hand.len() > n as usize {
+            let discard_count = (player.hand.len() as i32 - n) as usize;
+            self.pending_decision = Some(Decision {
+                player: pid,
+                decision_type: DecisionType::DiscardCards,
+                choices: player.hand.clone(),
+                range: (discard_count, discard_count)
+            })
         }
     }
+    
+    fn player_discards(&mut self, pid: PlayerIdentifier, cards: Vec<CardIdentifier>, ctx: &mut EvalContext) {
+        let ref mut player = self.players[pid.0 as usize];
+        
+        if ctx.debug {
+            let names = cards.iter().map(|ci| cards::lookup_card(ci).name.into()  ).collect::<Vec<String>>();
+            println!("{} discards {}", player.name, names.join(", "));
+        }
 
-    pub fn player_vp_and_turns(&self) -> Vec<(i32, i32)> {
-        return self.players.iter().enumerate().map(|(i, p)| {
-            let score = cards::score_cards(&p.all_cards());
-            if i <= (self.active_player.0 as usize) {
-                (score, self.turn)
-            } else {
-                (score, self.turn - 1)
-            }
-        }).collect::<Vec<(i32, i32)>>();
-    }
-
-    pub fn player_scores(&self) -> Vec<(PlayerIdentifier, f32)> {
-        assert!(self.is_game_over());
-        let points = self.player_vp_and_turns();
-        let high_score = points.iter().max_by_key(|pair| {
-            (pair.0, pair.1 * -1)
-        }).unwrap();
-
-        let winners = points.iter().filter(|pair| *pair == high_score).collect::<Vec<_>>();
-        return self.players.iter().zip(points.iter()).map(|(player, pair)| {
-            let score = if pair == high_score {
-                1.0 / (winners.len() as f32)
-            } else {
-                0.0
-            };
-            (player.identifier, score)
-        }).collect();
+        player.discard.extend(&cards);
+        subtract_vector::<CardIdentifier>(&mut player.hand, &cards);
     }
 
     fn next_turn(&mut self) {
@@ -204,12 +183,12 @@ impl Game {
     fn process_effect(&mut self, e: QueuedEffect, ctx: &mut EvalContext) {
         match e {
             QueuedEffect::ActionEffect(pid, ca) => {
-                let ref mut player = self.players[pid.0 as usize];
                 match ca {
-                    CardAction::DrawCards(n) => player.draw_cards(n as usize, ctx),
+                    CardAction::DrawCards(n) => self.player_draws_cards(pid, n, ctx),
                     CardAction::PlusActions(n) => self.actions += n,
                     CardAction::PlusBuys(n) => self.buys += n,
                     CardAction::PlusCoins(n) => self.coins += n,
+                    CardAction::OpponentsDiscardTo(n) => self.player_discards_to(pid, n, ctx),
                     _ => println!("Unhandled action: {:?}", ca),
                 }
             }
@@ -320,22 +299,44 @@ impl Game {
         }
     }
     
+    fn players_for_target(&self, target: EffectTarget, active_player: PlayerIdentifier) -> Vec<PlayerIdentifier> {
+        match target {
+            EffectTarget::ActivePlayer => vec![active_player],
+            EffectTarget::Opponents => {
+                let num_players = self.players.len();
+                (1..num_players).map(|i| PlayerIdentifier(((i + active_player.0 as usize) % num_players) as u8)).collect()
+            },
+            EffectTarget::AllPlayers => {
+                let num_players = self.players.len();
+                (0..num_players).map(|i| PlayerIdentifier(((i + active_player.0 as usize) % num_players) as u8)).collect()
+            }
+        }
+    }
+    
+    fn queue_card_effects(&mut self, active_player: PlayerIdentifier, action: &CardAction) {
+        let target = cards::target_for_action(&action);
+        for pid in self.players_for_target(target, active_player) {
+            self.pending_effects.push(QueuedEffect::ActionEffect(pid, action.clone()));
+        }
+    }
+    
     fn play_action(&mut self, pid: PlayerIdentifier, action: &CardIdentifier, ctx: &mut EvalContext) {
-        let ref mut player = self.players[pid.0 as usize];
-        assert!(self.actions > 0, "Must have an action");
-        assert!(self.phase == Phase::Action, "Must be action phase");
-        
-        let hand_idx = player.hand.iter().position(|v| *v == *action).expect("Player doesn't have card in hand");
-        player.hand.remove(hand_idx);
-        
-        self.play_area.push(action.clone());
-        
-        for e in &cards::lookup_card(action).action_effects {
-            self.pending_effects.push(QueuedEffect::ActionEffect(pid, e.clone()));
+        {
+            let ref mut player = self.players[pid.0 as usize];
+            assert!(self.actions > 0, "Must have an action");
+            assert!(self.phase == Phase::Action, "Must be action phase");
+            
+            if ctx.debug {
+                println!("{} plays {}", player.name, action);
+            }
+            
+            let hand_idx = player.hand.iter().position(|v| *v == *action).expect("Player doesn't have card in hand");
+            player.hand.remove(hand_idx);
         }
         
-        if ctx.debug {
-            println!("{} plays {}", player.name, action);
+        self.play_area.push(action.clone());
+        for e in &cards::lookup_card(action).action_effects {
+            self.queue_card_effects(pid, e);
         }
     }
     
@@ -378,6 +379,11 @@ impl Game {
                 match result.first() {
                     Some(ci) => self.buy_card(decision.player, ci, ctx),
                     None     => self.phase = Phase::Cleanup
+                }
+            },
+            DecisionType::DiscardCards => {
+                if result.len() > 0 {
+                    self.player_discards(decision.player, result, ctx);
                 }
             }
         }
@@ -443,6 +449,24 @@ pub fn run_game(players: &mut Vec<Box<Decider>>, debug: bool) -> Vec<f32> {
     }
 
     return game.player_scores().iter().map(|&(_, score)| score).collect();
+}
+
+#[test]
+fn test_player_targets() {
+    let names = vec!["Player 1".into(), "Player 2".into(), "Player 3".into()];
+    let g = fresh_game(&names);
+    
+    assert_eq!(
+        g.players_for_target(EffectTarget::ActivePlayer, PlayerIdentifier(1))[0],
+        PlayerIdentifier(1));
+        
+    assert_eq!(
+        g.players_for_target(EffectTarget::Opponents, PlayerIdentifier(1)),
+        vec![PlayerIdentifier(2), PlayerIdentifier(0)]);
+    
+    assert_eq!(
+        g.players_for_target(EffectTarget::AllPlayers, PlayerIdentifier(1)),
+        vec![PlayerIdentifier(1), PlayerIdentifier(2), PlayerIdentifier(0)]);
 }
 
 #[test]

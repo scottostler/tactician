@@ -1,6 +1,7 @@
 mod cards;
 mod deciders;
 mod game;
+mod game_scoring;
 mod tree_search;
 mod search_decider;
 mod util;
@@ -14,11 +15,15 @@ extern crate core;
 
 
 fn run_games(num_games: u32, players: &mut Vec<Box<game::Decider>>, debug: bool) {
-    println!("Running {} game(s)...", num_games);
+    if num_games > 1 {
+        println!("Running {} game(s)", num_games);
+    }
 
     let mut results = vec![0.0; 2];
     for i in 0..num_games {
-        println!("Running game {}...", i + 1);
+        if num_games > 1 {
+            println!("Game {}...", i + 1);
+        }
         let r = game::run_game(players, debug);
         for (i, score) in r.iter().enumerate() {
             results[i] += *score;
@@ -35,7 +40,7 @@ fn player_for_string(s: String, debug: bool) -> Box<game::Decider> {
     match s.to_lowercase().as_ref() {
         "bigmoney"  => Box::new(deciders::BigMoney),
         "tactician" => {
-            let num_iters = 50000;
+            let num_iters = 10000;
             let simulator_ctx = game::EvalContext { debug: false, rng: util::randomly_seeded_weak_rng() };
             Box::new(search_decider::SearchDecider { ctx: simulator_ctx, debug: debug, iterations: num_iters })
         },
@@ -60,7 +65,8 @@ fn main() {
     };
     
     if num_games == 0 {
-        panic!("I can't play zero games. That's silly!");
+        println!("I can't play zero games. That’s silly!");
+        std::process::exit(1);
     }
 
     let debug = matches.opt_present("debug");

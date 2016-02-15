@@ -19,14 +19,25 @@ impl Decider for BigMoney {
             DecisionType::BuyCard => {
                 let cs = g.coins;
                 if cs >= cards::PROVINCE.cost {
-                    return vec![cards::PROVINCE.identifier];
+                    vec![cards::PROVINCE.identifier]
                 } else if cs >= cards::GOLD.cost {
-                    return vec![cards::GOLD.identifier];
+                    vec![cards::GOLD.identifier]
                 } else if cs >= cards::SILVER.cost {
-                    return vec![cards::SILVER.identifier];
+                    vec![cards::SILVER.identifier]
                 } else {
-                    return vec![];
+                    vec![]
                 }
+            },
+            DecisionType::DiscardCards => {
+                let mut cards = d.choices.clone();
+                // Available in Rust 1.7
+                // cards.sort_by_key(|c| cards::lookup_card(c).coin_value.unwrap_or(0));
+                cards.sort_by(|a, b| {
+                    let a_coins = cards::lookup_card(a).coin_value.unwrap_or(0);
+                    let b_coins = cards::lookup_card(b).coin_value.unwrap_or(0);
+                    a_coins.cmp(&b_coins)
+                });
+                cards.iter().take(d.range.0).cloned().collect()
             }
         }
     }
