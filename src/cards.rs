@@ -2,22 +2,30 @@ use std;
 use std::collections::HashMap;
 use std::sync::Mutex;
 
+#[allow(dead_code)]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum CardType {
+    Treasure, Action, Victory, Reaction, Curse
+}
+
 #[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct CardIdentifier(pub u16);
 
-#[allow(dead_code)]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum GainDestination {
-    GainIntoHand, GainToDiscard
+    GainToHand, GainToDiscard
 }
 
-#[allow(dead_code)]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DiscardEffect {
     DrawPerDiscard
 }
 
-#[allow(dead_code)]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum TrashFollowup {
+    ReplaceByCost(Option<CardType>, i32, GainDestination)
+}
+
 #[derive(Clone, Debug)]
 pub enum CardAction {
     DiscardForEffect(DiscardEffect),
@@ -27,13 +35,19 @@ pub enum CardAction {
     PlusActions(i32),
     PlusBuys(i32),
     PlusCoins(i32),
+    TrashCards(Option<CardType>, Option<TrashFollowup>)
 }
 
-#[allow(dead_code)]
+#[derive(Clone, Debug)]
+pub enum CardReaction {
+    AttackImmunity
+}
+
 #[derive(Clone, Debug)]
 pub enum EffectTarget {
      ActivePlayer,
      Opponents,
+      #[allow(dead_code)]
      AllPlayers
 }
 
@@ -52,6 +66,8 @@ pub struct Card {
     pub coin_value: Option<i32>,
     pub vp_value: Option<i32>,
     pub action_effects: Vec<CardAction>,
+    pub reaction_effect: Option<CardReaction>,
+    pub is_attack: bool
 }
 
 impl std::fmt::Display for CardIdentifier {
@@ -71,6 +87,14 @@ impl Card {
         self.coin_value.is_some()
     }
     
+    pub fn is_victory(&self) -> bool {
+        self.vp_value.is_some()
+    }
+    
+    pub fn is_reaction(&self) -> bool {
+        self.reaction_effect.is_some()
+    }
+
     #[allow(dead_code)]
     pub fn is_vp(&self) -> bool {
         match self.vp_value {
@@ -83,6 +107,21 @@ impl Card {
     pub fn is_curse(&self) -> bool {
         self.identifier == CURSE.identifier
     }
+}
+
+pub fn is_of_type(c: &CardIdentifier, card_type: &CardType) -> bool {
+    let card = lookup_card(&c);
+    match card_type {
+        &CardType::Treasure => card.is_treasure(),
+        &CardType::Action => card.is_action(),
+        &CardType::Victory => card.is_victory(),
+        &CardType::Reaction => card.is_reaction(),
+        &CardType::Curse => card.is_curse(),
+    }
+}
+
+pub fn filter_by_type(cards: &Vec<CardIdentifier>, card_type: &CardType) -> Vec<CardIdentifier> {
+    cards.iter().filter(|c| is_of_type(c, card_type)).cloned().collect::<Vec<_>>()
 }
 
 impl std::fmt::Debug for CardIdentifier {
@@ -108,7 +147,9 @@ fn make_treasure_card(name: &'static str, cost: i32, coin_value: i32) -> Card {
         cost: cost,
         coin_value: Some(coin_value),
         vp_value: None,
-        action_effects: vec![]
+        action_effects: vec![],
+        reaction_effect: None,
+        is_attack: false
     }
 }
 
@@ -119,7 +160,9 @@ fn make_vp_card(name: &'static str, cost: i32, vp_value: i32) -> Card {
         cost: cost,
         coin_value: None,
         vp_value: Some(vp_value),
-        action_effects: vec![]
+        action_effects: vec![],
+        reaction_effect: None,
+        is_attack: false
     }
 }
 
@@ -130,7 +173,9 @@ fn make_curse() -> Card {
         cost: 0,
         coin_value: None,
         vp_value: Some(-1),
-        action_effects: vec![]
+        action_effects: vec![],
+        reaction_effect: None,
+        is_attack: false
     }
 }
 
@@ -141,7 +186,36 @@ fn make_action_card(name: &'static str, cost: i32, action_effects: Vec<CardActio
         cost: cost,
         coin_value: None,
         vp_value: None,
-        action_effects: action_effects
+        action_effects: action_effects,
+        reaction_effect: None,
+        is_attack: false
+    }
+}
+
+
+fn make_attack_card(name: &'static str, cost: i32, action_effects: Vec<CardAction>) -> Card {
+    Card {
+        identifier: CardIdentifier(bump_card_counter()),
+        name: name,
+        cost: cost,
+        coin_value: None,
+        vp_value: None,
+        action_effects: action_effects,
+        reaction_effect: None,
+        is_attack: true
+    }
+}
+
+fn make_reaction_card(name: &'static str, cost: i32, action_effects: Vec<CardAction>, reaction: CardReaction) -> Card {
+    Card {
+        identifier: CardIdentifier(bump_card_counter()),
+        name: name,
+        cost: cost,
+        coin_value: None,
+        vp_value: None,
+        action_effects: action_effects,
+        reaction_effect: Some(reaction),
+        is_attack: false
     }
 }
 
@@ -154,36 +228,55 @@ fn sort_cards_by_identifier(v: Vec<&'static Card>) -> Vec<&'static Card> {
     v
 }
 
+fn trash_and_replace_action(card_type: Option<CardType>, plus_cost: i32, dest: GainDestination) -> CardAction {
+    CardAction::TrashCards(card_type.clone(), Some(TrashFollowup::ReplaceByCost(card_type, plus_cost, dest)))
+}
+
 lazy_static! {
     
     pub static ref COPPER   : Card = make_treasure_card("Copper", 0, 1);
     pub static ref SILVER   : Card = make_treasure_card("Silver", 3, 2);
     pub static ref GOLD     : Card = make_treasure_card("Gold", 6, 3);
-    
     pub static ref ESTATE   : Card = make_vp_card("Estate", 2, 1);
     pub static ref DUCHY    : Card = make_vp_card("Duchy", 5, 3);
     pub static ref PROVINCE : Card = make_vp_card("Province", 8, 6);
-    
     pub static ref CURSE    : Card = make_curse();
 
-    pub static ref VILLAGE  : Card = make_action_card("Village", 3,
+    pub static ref VILLAGE : Card = make_action_card("Village", 3,
         vec![CardAction::DrawCards(1), CardAction::PlusActions(2)]);
 
-    pub static ref SMITHY   : Card = make_action_card("Smithy", 4,
+    pub static ref SMITHY : Card = make_action_card("Smithy", 4,
         vec![CardAction::DrawCards(3)]);
 
     pub static ref WOODCUTTER : Card = make_action_card("Woodcutter", 3,
         vec![CardAction::PlusBuys(1), CardAction::PlusCoins(2)]);
 
-    pub static ref MARKET   : Card = make_action_card("Market", 5,
-            vec![CardAction::DrawCards(1), CardAction::PlusActions(1), CardAction::PlusBuys(1), CardAction::PlusCoins(1)]);
+    pub static ref MARKET : Card = make_action_card("Market", 5,
+            vec![CardAction::DrawCards(1), CardAction::PlusActions(1),
+                 CardAction::PlusBuys(1), CardAction::PlusCoins(1)]);
 
-    pub static ref MILITIA  : Card = make_action_card("Militia", 4,
+    pub static ref MILITIA : Card = make_attack_card("Militia", 4,
         vec![CardAction::PlusCoins(2), CardAction::OpponentsDiscardTo(3)]);
+        
+    pub static ref WORKSHOP : Card = make_action_card("Workshop", 3,
+        vec![CardAction::GainCardCostingUpto(4)]);
+        
+    pub static ref MINE : Card = make_action_card("Mine", 5,
+        vec![trash_and_replace_action(Some(CardType::Treasure), 3, GainDestination::GainToHand)]);
+
+    pub static ref REMODEL : Card = make_action_card("Remodel", 5,
+        vec![trash_and_replace_action(None, 2, GainDestination::GainToDiscard)]);
+        
+    pub static ref CELLAR : Card = make_action_card("Cellar", 2,
+        vec![CardAction::DiscardForEffect(DiscardEffect::DrawPerDiscard)]);
+        
+    pub static ref MOAT : Card = make_reaction_card("Moat", 2,
+        vec![CardAction::DrawCards(2)], CardReaction::AttackImmunity);
 
     pub static ref CARDS : Vec<&'static Card> = sort_cards_by_identifier(vec![
         &COPPER, &SILVER, &GOLD, &ESTATE, &DUCHY, &PROVINCE, &CURSE,
-        &VILLAGE, &SMITHY, &MARKET, &WOODCUTTER, &MILITIA
+        &VILLAGE, &SMITHY, &MARKET, &WOODCUTTER, &MILITIA,
+        &WORKSHOP, &MINE, &REMODEL, &CELLAR, &MOAT
     ]);    
 }
 
@@ -220,7 +313,8 @@ pub fn standard_piles(num_players: i32) -> HashMap<CardIdentifier, i32> {
          (CURSE.identifier, curses)];
          
     let kingdom_cards = vec![
-        VILLAGE.identifier, SMITHY.identifier, MARKET.identifier, WOODCUTTER.identifier, MILITIA.identifier
+        VILLAGE.identifier, SMITHY.identifier, MARKET.identifier, WOODCUTTER.identifier, MILITIA.identifier,
+        WORKSHOP.identifier, MINE.identifier, REMODEL.identifier, CELLAR.identifier, MOAT.identifier
     ];
     
     for c in kingdom_cards {

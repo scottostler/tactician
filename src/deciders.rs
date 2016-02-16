@@ -28,7 +28,7 @@ impl Decider for BigMoney {
                     vec![]
                 }
             },
-            DecisionType::DiscardCards => {
+            DecisionType::DiscardCards(_) => {
                 let mut cards = d.choices.clone();
                 // Available in Rust 1.7
                 // cards.sort_by_key(|c| cards::lookup_card(c).coin_value.unwrap_or(0));
@@ -38,6 +38,15 @@ impl Decider for BigMoney {
                     a_coins.cmp(&b_coins)
                 });
                 cards.iter().take(d.range.0).cloned().collect()
+            },
+            DecisionType::GainCard(_) => {
+                return vec![d.choices.first().unwrap().clone()];
+            },
+            DecisionType::TrashCards(_) => {
+                return d.choices.iter().take(d.range.0).cloned().collect();
+            },
+            DecisionType::RevealReaction(_) => {
+                return vec![d.choices.first().unwrap().clone()];
             }
         }
     }
