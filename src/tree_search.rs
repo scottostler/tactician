@@ -178,7 +178,7 @@ pub fn find_best_move<T: SearchableState>(root_state: T, max_iters: i32, ctx: &m
         children: vec![]
     }));
 
-    for _ in 0..max_iters {        
+    for _ in 0..max_iters {
         // Select
         let mut node_ref = best_unexplored_node(&root_node);
 
@@ -192,10 +192,7 @@ pub fn find_best_move<T: SearchableState>(root_state: T, max_iters: i32, ctx: &m
         // Rollout
         let start_state = node_ref.borrow().state.clone();
         let end_state = simulate_until_terminal(start_state, &mut rng, ctx);
-        let result = match end_state.game_result() {
-            Some(r) => r,
-            None => { panic!("Terminal game state is missing a result"); }
-        };
+        let result = end_state.game_result().expect("Terminal game state is missing a result");
 
         // Backpropagate
         node_ref.borrow_mut().update_with_result(&result);
