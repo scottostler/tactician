@@ -22,6 +22,8 @@ pub trait SearchableState : Clone + Debug {
     fn all_moves(&self) -> Vec<Self::M>;
     fn make_move(&self, &choice:Self::M, &mut Self::C) -> Self;
     fn make_move_mut(&mut self, &choice:Self::M, &mut Self::C);
+
+    fn printable_player_identifier(&self, p:&Self::P) -> String;
 }
 
 #[derive(Debug)]
@@ -41,7 +43,7 @@ impl <T: SearchableState> SearchNode<T> {
     fn print_debug_move_tree(&self) {
         println!("  {:?} --", self.state);
         if let Some(p) = self.state.active_player() {
-            println!("    Moves for Player {:?}: ", p);
+            println!("    Moves for {}: ", self.state.printable_player_identifier(&p));
             for c in &self.children {
                 let c = c.borrow();
                 println!("    {:?}: won {} / {} ({:.2}%) visits",

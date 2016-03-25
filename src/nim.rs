@@ -43,6 +43,10 @@ impl SearchableState for NimState {
         self.total -= choice;
         self.player_turn = (self.player_turn + 1) % 2;
     }
+
+    fn printable_player_identifier(&self, p:&Self::P) -> String {
+        format!("Player {}", p+1)
+    }
 }
 
 #[cfg(test)]

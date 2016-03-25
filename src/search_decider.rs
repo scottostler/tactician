@@ -6,10 +6,9 @@ use game::{Decider, Decision, DecisionType, EvalContext, Game, PlayerIdentifier}
 use tree_search;
 
 fn hard_coded_decision(d: &Decision) -> Option<Vec<CardIdentifier>> {
-    if d.decision_type == DecisionType::PlayTreasures {
-        Some(d.choices.clone())
-    } else {
-        None
+    match d.decision_type {
+        DecisionType::PlayTreasures => Some(d.choices.clone()),
+        _ => None
     }
 }
 
@@ -93,6 +92,10 @@ impl tree_search::SearchableState for Game {
         while !self.is_game_over() && self.pending_decision.is_none() {
             self.advance_game(ctx);
         }
+    }
+
+    fn printable_player_identifier(&self, p:&Self::P) -> String {
+        self.players[p.0 as usize].name.clone()
     }
 }
 
