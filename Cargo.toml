@@ -4,10 +4,13 @@ version = "0.0.1"
 authors = [ "Scott Ostler" ]
 
 [profile.release]
-debug = true
+panic = "abort"
+
+[profile.dev]
+panic = "abort"
 
 [dependencies]
-getopts = "0.2.14"
-itertools = "0.4"
-lazy_static = "0.1.15"
-rand = "0.3.13"
+getopts = "0.2.*"
+itertools = "0.4.*"
+lazy_static = "0.2.*"
+rand = "0.3.*"

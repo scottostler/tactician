@@ -8,8 +8,8 @@ use util;
 #[derive(Debug, Eq, PartialEq)]
 pub struct Winners<P>(pub Vec<P>);
 
-type WeakNodeRef<T> = Weak<RefCell<SearchNode<T>>>;
-type NodeRef<T> = Rc<RefCell<SearchNode<T>>>;
+pub type WeakNodeRef<T> = Weak<RefCell<SearchNode<T>>>;
+pub type NodeRef<T> = Rc<RefCell<SearchNode<T>>>;
 
 pub trait SearchableState : Clone + Debug {
     type P: Clone + PartialEq + Debug;
