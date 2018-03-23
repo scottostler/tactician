@@ -20,8 +20,8 @@ pub trait SearchableState : Clone + Debug {
     fn all_players(&self) -> Vec<Self::P>;
     fn active_player(&self) -> Option<Self::P>;
     fn all_moves(&self) -> Vec<Self::M>;
-    fn make_move(&self, &choice:Self::M, &mut Self::C) -> Self;
-    fn make_move_mut(&mut self, &choice:Self::M, &mut Self::C);
+    fn make_move(&self, Self::M, &mut Self::C) -> Self;
+    fn make_move_mut(&mut self, Self::M, &mut Self::C);
 
     fn printable_player_identifier(&self, p:&Self::P) -> String;
 }

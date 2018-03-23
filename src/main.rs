@@ -7,8 +7,8 @@ mod search_decider;
 mod util;
 mod nim;
 
-#[macro_use] extern crate itertools;
 #[macro_use] extern crate lazy_static;
+extern crate itertools;
 extern crate getopts;
 extern crate rand;
 extern crate core;

@@ -675,7 +675,6 @@ mod tests {
     
     use game::*;
     use cards::*;
-    use util::*;
     
     fn advance_until_decision(game: &mut Game, ctx: &mut EvalContext) {
         while game.pending_decision.is_none() {
