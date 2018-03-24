@@ -7,12 +7,12 @@ mod search_decider;
 mod util;
 mod nim;
 
-#[macro_use] extern crate lazy_static;
-extern crate itertools;
-extern crate getopts;
-extern crate rand;
 extern crate core;
-
+extern crate getopts;
+extern crate itertools;
+#[macro_use]
+extern crate lazy_static;
+extern crate rand;
 
 fn run_games(num_games: u32, players: &mut Vec<Box<game::Decider>>, debug: bool) {
     if num_games > 1 {
@@ -38,14 +38,21 @@ fn run_games(num_games: u32, players: &mut Vec<Box<game::Decider>>, debug: bool)
 
 fn player_for_string(s: String, debug: bool) -> Box<game::Decider> {
     match s.to_lowercase().as_ref() {
-        "bigmoney"  => Box::new(deciders::BigMoney),
+        "bigmoney" => Box::new(deciders::BigMoney),
         "tactician" => {
             let num_iters = 10000;
-            let simulator_ctx = game::EvalContext { debug: false, rng: util::randomly_seeded_weak_rng() };
-            Box::new(search_decider::SearchDecider { ctx: simulator_ctx, debug: debug, iterations: num_iters })
-        },
-        "random"    => Box::new(deciders::RandomDecider::new()),
-        _           => panic!("Unknown player {}", s)
+            let simulator_ctx = game::EvalContext {
+                debug: false,
+                rng: util::randomly_seeded_weak_rng(),
+            };
+            Box::new(search_decider::SearchDecider {
+                ctx: simulator_ctx,
+                debug: debug,
+                iterations: num_iters,
+            })
+        }
+        "random" => Box::new(deciders::RandomDecider::new()),
+        _ => panic!("Unknown player {}", s),
     }
 }
 
@@ -55,27 +62,39 @@ fn main() {
     opts.optflag("d", "debug", "enable debug logging");
 
     let matches = match opts.parse(&args[1..]) {
-        Ok(m) => { m }
-        Err(f) => { panic!(f.to_string()) }
+        Ok(m) => m,
+        Err(f) => panic!(f.to_string()),
     };
-    
+
     let num_games = match matches.free.first() {
         Some(s) => s.parse::<u32>().unwrap(),
-        None    => 1
+        None => 1,
     };
-    
+
     if num_games == 0 {
         println!("I can't play zero games. That’s silly!");
         std::process::exit(1);
     }
 
     let debug = matches.opt_present("debug");
-    
+
     let first_player = player_for_string(
-        matches.free.get(1).unwrap_or(&String::from("tactician")).clone(), debug);
+        matches
+            .free
+            .get(1)
+            .unwrap_or(&String::from("tactician"))
+            .clone(),
+        debug,
+    );
     let second_player = player_for_string(
-        matches.free.get(2).unwrap_or(&String::from("bigmoney")).clone(), debug);
-    
+        matches
+            .free
+            .get(2)
+            .unwrap_or(&String::from("bigmoney"))
+            .clone(),
+        debug,
+    );
+
     let mut players = vec![first_player, second_player];
     run_games(num_games, &mut players, debug);
 }

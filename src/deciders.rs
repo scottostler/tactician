@@ -1,18 +1,21 @@
 use rand::{sample, Rng, XorShiftRng};
 
 use cards;
-use cards::{CardIdentifier};
+use cards::CardIdentifier;
 use game::{Decider, DecisionType, Game};
 use util;
 
 pub struct BigMoney;
 
 impl Decider for BigMoney {
-
-    fn description(&self) -> String { return "Big Money".into(); }
+    fn description(&self) -> String {
+        return "Big Money".into();
+    }
 
     fn make_decision(&mut self, g: &Game) -> Vec<CardIdentifier> {
-        let d = g.pending_decision.as_ref().expect("BigMoney::make_decision called without pending decision");
+        let d = g.pending_decision
+            .as_ref()
+            .expect("BigMoney::make_decision called without pending decision");
         match d.decision_type {
             DecisionType::PlayAction => panic!("BigMoney should not buy actions"),
             DecisionType::PlayTreasures => return d.choices.clone(),
@@ -27,7 +30,7 @@ impl Decider for BigMoney {
                 } else {
                     vec![]
                 }
-            },
+            }
             DecisionType::DiscardCards(_) => {
                 let mut cards = d.choices.clone();
                 // Available in Rust 1.7
@@ -38,13 +41,13 @@ impl Decider for BigMoney {
                     a_coins.cmp(&b_coins)
                 });
                 cards.iter().take(d.range.0).cloned().collect()
-            },
+            }
             DecisionType::GainCard(_) => {
                 return vec![d.choices.first().unwrap().clone()];
-            },
+            }
             DecisionType::TrashCards(_) => {
                 return d.choices.iter().take(d.range.0).cloned().collect();
-            },
+            }
             DecisionType::RevealReaction(_) => {
                 return vec![d.choices.first().unwrap().clone()];
             }
@@ -53,22 +56,27 @@ impl Decider for BigMoney {
 }
 
 pub struct RandomDecider {
-    rng: XorShiftRng
+    rng: XorShiftRng,
 }
 
 impl RandomDecider {
     #[allow(dead_code)]
     pub fn new() -> RandomDecider {
-        RandomDecider { rng:util::randomly_seeded_weak_rng() }
+        RandomDecider {
+            rng: util::randomly_seeded_weak_rng(),
+        }
     }
 }
 
 impl Decider for RandomDecider {
-
-    fn description(&self) -> String { return "Random".into(); }
+    fn description(&self) -> String {
+        return "Random".into();
+    }
 
     fn make_decision(&mut self, g: &Game) -> Vec<CardIdentifier> {
-        let d = g.pending_decision.as_ref().expect("BigMoney::make_decision called without pending decision");
+        let d = g.pending_decision
+            .as_ref()
+            .expect("BigMoney::make_decision called without pending decision");
         if d.decision_type == DecisionType::PlayTreasures {
             return d.choices.clone();
         }
