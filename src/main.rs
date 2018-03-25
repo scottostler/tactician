@@ -23,7 +23,12 @@ fn run_games(num_games: u32, players: &mut Vec<Box<game::Decider>>, debug: bool)
     let mut results = vec![0.0; 2];
     for i in 0..num_games {
         if num_games > 1 {
-            println!("Game {}...", i + 1);
+            let title = format!("Game {}", i + 1);
+            println!("");
+            println!("========================================");
+            println!("|{: ^38}|", title);
+            println!("========================================");
+            println!("");
         }
         let r = game::run_game(players, debug);
         for (i, score) in r.iter().enumerate() {

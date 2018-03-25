@@ -781,6 +781,7 @@ pub fn run_game(players: &mut Vec<Box<Decider>>, debug: bool) -> Vec<f32> {
             let ref name = game.players[i].name;
             println!("{}: {} VP in {} turns", name, points, turns);
         }
+        println!();
     }
 
     return game.player_scores()
