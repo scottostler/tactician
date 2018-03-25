@@ -11,6 +11,6 @@ panic = "abort"
 
 [dependencies]
 getopts = "0.2.*"
-itertools = "0.4.*"
-lazy_static = "0.2.*"
-rand = "0.3.*"
+itertools = "0.7.*"
+lazy_static = "1.0"
+rand = "0.4.*"

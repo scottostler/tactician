@@ -63,7 +63,7 @@ impl tree_search::SearchableState for Game {
                 continue;
             }
 
-            let combinations = d.choices.iter().combinations_n(i);
+            let combinations = d.choices.iter().combinations(i);
             for c in combinations {
                 let mut v = Vec::with_capacity(c.len());
                 for x in c {

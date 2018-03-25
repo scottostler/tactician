@@ -1,4 +1,4 @@
-use rand::{sample, Rng, XorShiftRng};
+use rand::{Rng, seq, XorShiftRng};
 
 use cards;
 use cards::CardIdentifier;
@@ -85,6 +85,7 @@ impl Decider for RandomDecider {
             true => d.range.0,
             false => self.rng.gen_range(d.range.0, d.range.1 + 1) as usize,
         };
-        return sample(&mut self.rng, d.choices.clone(), n);
+
+        return seq::sample_iter(&mut self.rng, d.choices.clone(), n).unwrap();
     }
 }
