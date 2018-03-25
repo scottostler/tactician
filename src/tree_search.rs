@@ -28,30 +28,30 @@ pub trait SearchableState: Clone + Debug {
 
 #[derive(Debug)]
 pub struct SearchNode<T: SearchableState> {
-    state: T,
-    wins: f32,
-    visits: i32,
-    last_move: Option<T::M>,
-    untried_moves: Vec<T::M>,
-    player_just_moved: T::P,
-    parent: Option<WeakNodeRef<T>>,
-    children: Vec<NodeRef<T>>,
+    pub state: T,
+    pub wins: f32,
+    pub visits: i32,
+    pub last_move: Option<T::M>,
+    pub untried_moves: Vec<T::M>,
+    pub player_just_moved: T::P,
+    pub parent: Option<WeakNodeRef<T>>,
+    pub children: Vec<NodeRef<T>>,
 }
 
 #[derive(Clone, Debug)]
 pub struct NodeStats<T: SearchableState> {
-    state: T,
-    wins: f32,
-    visits: i32,
-    percent_won: f32,
-    last_move: Option<T::M>,
+    pub state: T,
+    pub wins: f32,
+    pub visits: i32,
+    pub percent_won: f32,
+    pub last_move: Option<T::M>,
 }
 
 impl<T: SearchableState> SearchNode<T>
 where
     T::M: Clone,
 {
-    fn stats(&self) -> NodeStats<T> {
+    pub fn stats(&self) -> NodeStats<T> {
         NodeStats {
             state: self.state.clone(),
             wins: self.wins,
@@ -63,43 +63,6 @@ where
 }
 
 impl<T: SearchableState> SearchNode<T> {
-    fn print_debug_move_tree(&self) {
-        println!("  {:?} --", self.state);
-        if let Some(p) = self.state.active_player() {
-            println!(
-                "    Moves for {}: ",
-                self.state.printable_player_identifier(&p)
-            );
-
-            let mut child_stats: Vec<NodeStats<T>> =
-                self.children.iter().map(|c| c.borrow().stats()).collect();
-
-            // Reverse so in descending order
-            child_stats.sort_by(|a, b| (b.percent_won).partial_cmp(&a.percent_won).unwrap());
-
-            for stat in child_stats.iter() {
-                println!(
-                    "    {:?}: won {} / {} ({:.2}%) visits",
-                    stat.last_move
-                        .as_ref()
-                        .expect("children should have last move"),
-                    stat.wins,
-                    stat.visits,
-                    100.0 * stat.percent_won as f32
-                );
-            }
-
-            if !self.children.is_empty() {
-                let child = self.most_visited_child();
-                child.borrow().print_debug_move_tree();
-            } else {
-                println!("    ...tree is exhausted");
-            }
-        } else {
-            println!("    ...game is over");
-        }
-    }
-
     fn expectation(&self, parent_visits: f32) -> f32 {
         let f_visits = self.visits as f32;
         let payout = self.wins / f_visits;

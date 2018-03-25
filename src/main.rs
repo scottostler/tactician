@@ -4,6 +4,7 @@ mod game;
 mod game_scoring;
 mod game_logging;
 mod tree_search;
+mod tree_search_logging;
 mod search_decider;
 mod util;
 mod nim;
