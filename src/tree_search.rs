@@ -38,6 +38,30 @@ pub struct SearchNode<T: SearchableState> {
     children: Vec<NodeRef<T>>,
 }
 
+#[derive(Clone, Debug)]
+pub struct NodeStats<T: SearchableState> {
+    state: T,
+    wins: f32,
+    visits: i32,
+    percent_won: f32,
+    last_move: Option<T::M>,
+}
+
+impl<T: SearchableState> SearchNode<T>
+where
+    T::M: Clone,
+{
+    fn stats(&self) -> NodeStats<T> {
+        NodeStats {
+            state: self.state.clone(),
+            wins: self.wins,
+            visits: self.visits,
+            percent_won: self.wins / self.visits as f32,
+            last_move: self.last_move.clone(),
+        }
+    }
+}
+
 impl<T: SearchableState> SearchNode<T> {
     fn print_debug_move_tree(&self) {
         println!("  {:?} --", self.state);
@@ -46,16 +70,22 @@ impl<T: SearchableState> SearchNode<T> {
                 "    Moves for {}: ",
                 self.state.printable_player_identifier(&p)
             );
-            for c in &self.children {
-                let c = c.borrow();
+
+            let mut child_stats: Vec<NodeStats<T>> =
+                self.children.iter().map(|c| c.borrow().stats()).collect();
+
+            // Reverse so in descending order
+            child_stats.sort_by(|a, b| (b.percent_won).partial_cmp(&a.percent_won).unwrap());
+
+            for stat in child_stats.iter() {
                 println!(
                     "    {:?}: won {} / {} ({:.2}%) visits",
-                    c.last_move
+                    stat.last_move
                         .as_ref()
                         .expect("children should have last move"),
-                    c.wins,
-                    c.visits,
-                    100.0 * c.wins / c.visits as f32
+                    stat.wins,
+                    stat.visits,
+                    100.0 * stat.percent_won as f32
                 );
             }
 
