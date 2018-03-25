@@ -31,7 +31,11 @@ impl SearchableState for Game {
     }
 
     fn all_players(&self) -> Vec<Self::P> {
-        vec![PlayerIdentifier(0), PlayerIdentifier(1)]
+        return self.players
+            .iter()
+            .enumerate()
+            .map(|i, _| PlayerIdentifier(i))
+            .collect();
     }
 
     fn active_player(&self) -> Option<Self::P> {
