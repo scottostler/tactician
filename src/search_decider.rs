@@ -119,7 +119,6 @@ impl Decider for SearchDecider {
             }
         }
 
-        let best_move = find_best_move(g.clone(), self.iterations, &mut self.ctx, self.debug);
-        best_move
+        find_best_move(g.clone(), self.iterations, &mut self.ctx, self.debug)
     }
 }
