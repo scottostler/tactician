@@ -3,7 +3,7 @@ use itertools::Itertools;
 use cards::CardIdentifier;
 
 use game::{Decider, Decision, DecisionType, EvalContext, Game, PlayerIdentifier};
-use tree_search;
+use tree_search::{find_best_move, SearchableState, Winners};
 
 fn hard_coded_decision(d: &Decision) -> Option<Vec<CardIdentifier>> {
     match d.decision_type {
@@ -12,19 +12,19 @@ fn hard_coded_decision(d: &Decision) -> Option<Vec<CardIdentifier>> {
     }
 }
 
-impl tree_search::SearchableState for Game {
+impl SearchableState for Game {
     type P = PlayerIdentifier;
     type M = Vec<CardIdentifier>;
     type C = EvalContext;
 
-    fn game_result(&self) -> Option<tree_search::Winners<Self::P>> {
+    fn game_result(&self) -> Option<Winners<Self::P>> {
         if self.is_game_over() {
             let scores = self.player_scores();
             let winners = scores
                 .iter()
                 .filter_map(|&(pid, score)| if score > 0.0 { Some(pid) } else { None })
                 .collect::<Vec<PlayerIdentifier>>();
-            Some(tree_search::Winners(winners))
+            Some(Winners(winners))
         } else {
             None
         }
@@ -119,8 +119,7 @@ impl Decider for SearchDecider {
             }
         }
 
-        let best_move =
-            tree_search::find_best_move(g.clone(), self.iterations, &mut self.ctx, self.debug);
+        let best_move = find_best_move(g.clone(), self.iterations, &mut self.ctx, self.debug);
         best_move
     }
 }
