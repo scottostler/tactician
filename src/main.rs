@@ -2,6 +2,7 @@ mod cards;
 mod deciders;
 mod game;
 mod game_scoring;
+mod game_logging;
 mod tree_search;
 mod search_decider;
 mod util;

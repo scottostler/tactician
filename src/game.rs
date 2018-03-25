@@ -337,10 +337,7 @@ impl Game {
 
         match self.phase {
             Phase::StartTurn => {
-                if ctx.debug {
-                    let ref player = self.players[self.active_player.0 as usize];
-                    println!("----- Turn {}, {} -----", self.turn, player.name);
-                }
+                self.print_turn_start_summary(ctx);
                 self.phase = Phase::Action;
             }
             Phase::Action => {
