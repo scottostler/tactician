@@ -1,4 +1,4 @@
-use rand::{Rng, seq, XorShiftRng};
+use rand::{seq, Rng, XorShiftRng};
 
 use cards;
 use cards::CardIdentifier;
