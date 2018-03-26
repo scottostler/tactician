@@ -34,7 +34,7 @@ impl SearchableState for Game {
         return self.players
             .iter()
             .enumerate()
-            .map(|i, _| PlayerIdentifier(i))
+            .map(|(i, _)| PlayerIdentifier(i as u8))
             .collect();
     }
 
