@@ -704,13 +704,31 @@ impl Game {
     }
 }
 
+impl Game {
+    fn turn_description(&self) -> String {
+        format!(
+            "{} Turn {} - {:?}",
+            self.players[self.active_player.0 as usize].name, self.turn, self.phase)
+    }
+
+    fn decision_description(&self) -> String {
+        match self.pending_decision.as_ref() {
+            Some(d) => {
+                format!("{} to {:?}",
+                        self.players[d.player.0 as usize].name,
+                        d.decision_type)
+            },
+            None => {
+                "Game Over".to_string()
+            }
+        }
+    }
+}
+
 impl std::fmt::Debug for Game {
+
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(
-            f,
-            "Turn {}, {}'s turn",
-            self.turn, self.players[self.active_player.0 as usize].name
-        )
+        write!(f, "{}: {}", self.turn_description(), self.decision_description())
     }
 }
 
