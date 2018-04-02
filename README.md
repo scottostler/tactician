@@ -16,3 +16,4 @@ You can also run directly from cargo with:
 
 * Instead of playing each simulation to the game's end with random play, limit the number of moves/actions evaluated, and evaluate the result with a simple deck hueristic. [https://www.sciencedirect.com/science/article/pii/S0004370210000536]
 
+* Better capture information from simulation results .[http://orangehelicopter.com/academic/papers/ai_icarus.pdf]
