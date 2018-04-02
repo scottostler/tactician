@@ -16,7 +16,7 @@ extern crate itertools;
 extern crate lazy_static;
 extern crate rand;
 
-fn run_games(num_games: u32, players: &mut Vec<Box<game::Decider>>, debug: bool) {
+fn run_games(num_games: u32, players: &mut Vec<Box<game::Decider>>, silent: bool) {
     if num_games > 1 {
         println!("Running {} game(s)", num_games);
     }
@@ -31,7 +31,7 @@ fn run_games(num_games: u32, players: &mut Vec<Box<game::Decider>>, debug: bool)
             println!("========================================");
             println!("");
         }
-        let r = game::run_game(players, debug);
+        let r = game::run_game(players, !silent);
         for (i, score) in r.iter().enumerate() {
             results[i] += *score;
         }
@@ -43,7 +43,7 @@ fn run_games(num_games: u32, players: &mut Vec<Box<game::Decider>>, debug: bool)
     }
 }
 
-fn player_for_string(s: String, debug: bool) -> Box<game::Decider> {
+fn player_for_string(s: String, silent: bool) -> Box<game::Decider> {
     match s.to_lowercase().as_ref() {
         "bigmoney" => Box::new(deciders::BigMoney),
         "tactician" => {
@@ -54,7 +54,7 @@ fn player_for_string(s: String, debug: bool) -> Box<game::Decider> {
             };
             Box::new(search_decider::SearchDecider {
                 ctx: simulator_ctx,
-                debug: debug,
+                debug: !silent,
                 iterations: num_iters,
             })
         }
@@ -66,7 +66,7 @@ fn player_for_string(s: String, debug: bool) -> Box<game::Decider> {
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let mut opts = getopts::Options::new();
-    opts.optflag("d", "debug", "enable debug logging");
+    opts.optflag("s", "silent", "don't print game logs");
 
     let matches = match opts.parse(&args[1..]) {
         Ok(m) => m,
@@ -83,7 +83,7 @@ fn main() {
         std::process::exit(1);
     }
 
-    let debug = matches.opt_present("debug");
+    let silent = matches.opt_present("silent");
 
     let first_player = player_for_string(
         matches
@@ -91,7 +91,7 @@ fn main() {
             .get(1)
             .unwrap_or(&String::from("tactician"))
             .clone(),
-        debug,
+        silent,
     );
     let second_player = player_for_string(
         matches
@@ -99,9 +99,9 @@ fn main() {
             .get(2)
             .unwrap_or(&String::from("bigmoney"))
             .clone(),
-        debug,
+        silent,
     );
 
     let mut players = vec![first_player, second_player];
-    run_games(num_games, &mut players, debug);
+    run_games(num_games, &mut players, silent);
 }

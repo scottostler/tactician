@@ -8,7 +8,7 @@ To see Tactician play one game against a simple big money strategy, you can buil
     
 You can also run directly from cargo with:
 
-    cargo run --release -- 1 --debug
+    cargo run --release -- 1
 
 ### Ideas for Improving Play
 
